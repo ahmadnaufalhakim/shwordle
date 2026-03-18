@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+play() {
+    local target="${words[RANDOM % ${#words[@]}]}"
+    echo "${target}"
+}
+
+read -r -d '' WORD_LIST <<'EOM'
+ABCDE
+FGHIJ
+KLMNO
+PQRST
+UVWXY
+Z
+EOM
+mapfile -t words <<< "${WORD_LIST}"
+
+play
