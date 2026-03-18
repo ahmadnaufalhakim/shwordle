@@ -1,11 +1,38 @@
 #!/usr/bin/env bash
 
-play() {
-    local target="${words[RANDOM % ${#words[@]}]}"
-    local attempts=0
+main() {
+    echo "welcome to shwordle!"
 
-    while (( attempts < 6 )); do
-        read -p "Enter your guess: " guess
+    while true; do
+        echo
+        echo "Menu:"
+        echo "1) Play"
+        echo "2) Exit"
+
+        read -p "Choose an option: " choice
+        case "${choice}" in
+            1)
+                play
+                ;;
+            2)
+                echo $'\nThanks for playing!'
+                echo "Made by ahmadnaufalhakim"
+                break
+                ;;
+            *)
+                echo "Invalid choice! Please enter 1 or 2."
+                ;;
+        esac
+    done
+}
+
+play() {
+    clear
+    local target="${words[RANDOM % ${#words[@]}]}"
+    local attempts=1
+
+    while (( attempts <= 6 )); do
+        read -p "Guess #${attempts}: " guess
         if [[ "${guess}" == "${target}" ]]; then
             echo "correct! you win! wow"
             return
@@ -28,4 +55,4 @@ Z
 EOM
 mapfile -t words <<< "${WORD_LIST}"
 
-play
+main
