@@ -2,7 +2,20 @@
 
 play() {
     local target="${words[RANDOM % ${#words[@]}]}"
-    echo "${target}"
+    local attempts=0
+
+    while (( attempts < 6 )); do
+        read -p "Enter your guess: " guess
+        if [[ "${guess}" == "${target}" ]]; then
+            echo "correct! you win! wow"
+            return
+        else
+            echo "wrong! try again"
+        fi
+        (( attempts++ ))
+    done
+
+    echo "out of attempts! the word was: ${target}"
 }
 
 read -r -d '' WORD_LIST <<'EOM'
