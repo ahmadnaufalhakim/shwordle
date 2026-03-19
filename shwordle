@@ -3,11 +3,135 @@
 RESET="\e[0m"
 GREEN="\e[42m"
 YELLOW="\e[43m"
+GRAY="\e[100m"
 DEFAULT="\e[49m"
+
+C_LD="╗"
+C_DR="╔"
+C_RU="╚"
+C_UL="╝"
+T_D="╦"
+T_R="╠"
+T_U="╩"
+T_L="╣"
+HORIZONTAL="═"
+VERTICAL="║"
+PLUS="╬"
+
+KEY_ROWS=(
+    "QWERTYUIOP"
+    "ASDFGHJKL"
+    "ZXCVBNM"
+)
+
+GUESS_COL=2
+KEYBOARD_ROW=6
+KEYBOARD_COL=14
+
+draw_ui() {
+    clear
+
+    cat <<'EOF'
+╔═══════════╦═════════════════════╗
+║  Guesses  ║                     ║
+╠═══════════╣                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+║           ║                     ║
+╚═══════════╩═════════════════════╝
+EOF
+}
+
+draw_keyboard() {
+    local start_row="$1"
+    local start_col="$2"
+
+    for (( r=0; r<${#KEY_ROWS[@]}; r++ )); do
+        case "${r}" in
+            1)
+                offset=1
+                ;;
+            2)
+                offset=2
+                ;;
+            *)
+                offset=0
+                ;;
+        esac
+        key_row="${KEY_ROWS[${r}]}"
+
+        tput cup "$(( start_row + r ))" "$(( start_col + offset ))"
+
+        for (( i=0; i<${#key_row}; i++ )); do
+            key="${key_row:i:1}"
+            state="${key_state[${key}]:-0}"
+
+            case "${state}" in
+                3)
+                    color="${GREEN}"
+                    ;;
+                2)
+                    color="${YELLOW}"
+                    ;;
+                1)
+                    color="${GRAY}"
+                    ;;
+                *)
+                    color="${DEFAULT}"
+                    ;;
+            esac
+
+            printf "%b%s%b " "${color}" "${key}" "${RESET}"
+        done
+    done
+}
+
+update_key_state() {
+    local target="$1"
+    local input="$2"
+
+    declare -A count
+    for (( i=0; i<5; i++ )); do
+        (( count["${target:i:1}"]++ ))
+    done
+
+    # Pass 1: greens
+    for (( i=0; i<5; i++ )); do
+        key="${input:i:1}"
+        if [[ "${key}" == "${target:i:1}" ]]; then
+            key_state["${key}"]=3
+            (( count["${key}"]-- ))
+        fi
+    done
+
+    # Pass 2: yellow/gray
+    for (( i=0; i<5; i++ )); do
+        key="${input:i:1}"
+
+        # Skip if key is already green
+        [[ "${key_state[${key}]}" == 3 ]] && continue
+
+        if (( count["${key}"] > 0 )); then
+            # Upgrade only if key is not already yellow/green
+            [[ "${key_state[${key}]:-0}" -lt 2 ]] && key_state["${key}"]=2
+            (( count["${key}"]-- ))
+        else
+            [[ "${key_state[${key}]}" -lt 1 ]] && key_state["${key}"]=1
+        fi
+    done
+}
 
 main() {
     clear
-    echo "welcome to shwordle!"
+    echo "Welcome to shwordle!"
     echo
 
     while true; do
@@ -35,8 +159,8 @@ main() {
 }
 
 check() {
-    target="$1"
-    input="$2"
+    local target="$1"
+    local input="$2"
 
     declare -A count
     for (( i=0; i<5; i++ )); do
@@ -60,20 +184,20 @@ check() {
                 result[$i]="${YELLOW}${input:i:1}"
                 (( count["$letter"]-- ))
             else
-                result[$i]="${DEFAULT}${input:i:1}"
+                result[$i]="${GRAY}${input:i:1}"
             fi
         fi
     done
 
     IFS=""
-    printf '%b\n' "${result[*]}${RESET}"
+    printf '%b' "${result[*]}${RESET}"
 }
 
 guess() {
-    attempts="$1"
-    target="$2"
+    local attempts="$1"
+    local target="$2"
 
-    printf "Guess #%d: " "${attempts}" >&2
+    printf "#%d: " "${attempts}" >&2
 
     local input=""
     local char
@@ -140,13 +264,25 @@ intrjctn() {
 }
 
 play() {
+    declare -gA key_state
+    key_state=()
+
     clear
+    draw_ui
+
     local target="${words[RANDOM % ${#words[@]}]}"
 
     local attempts=1
     while (( attempts <= 6 )); do
+        draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
+
+        tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}" 
+
         guess_word=$(guess "${attempts}" "${target}")
+        update_key_state "${target}" "${guess_word}"
+
         if [[ "${guess_word}" == "${target}" ]]; then # problem is here
+            tput cup 15 0
             echo "$(intrjctn "${attempts}") You win!"
             return
         fi
@@ -154,6 +290,7 @@ play() {
         (( attempts++ ))
     done
 
+    tput cup 15 0
     echo "Out of tries! The word was: ${target}"
 }
 
