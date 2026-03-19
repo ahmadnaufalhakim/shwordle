@@ -6,6 +6,7 @@ YELLOW="\e[43m"
 DEFAULT="\e[49m"
 
 main() {
+    clear
     echo "welcome to shwordle!"
     echo
 
