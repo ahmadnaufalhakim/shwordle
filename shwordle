@@ -7,9 +7,9 @@ DEFAULT="\e[49m"
 
 main() {
     echo "welcome to shwordle!"
+    echo
 
     while true; do
-        echo
         echo "Menu:"
         echo "1) Play"
         echo "2) Exit"
@@ -18,6 +18,8 @@ main() {
         case "${choice}" in
             1)
                 play
+                echo
+                echo "Would you like to play again?"
                 ;;
             2)
                 echo $'\nThanks for playing!'
@@ -112,6 +114,30 @@ guess() {
     done
 }
 
+intrjctn() {
+    local attempts="$1"
+    case "${attempts}" in
+        1)
+            printf "%s" "Genius!"
+            ;;
+        2)
+            printf "%s" "Magnificent!"
+            ;;
+        3)
+            printf "%s" "Impressive!"
+            ;;
+        4)
+            printf "%s" "Splendid!"
+            ;;
+        5)
+            printf "%s" "Great!"
+            ;;
+        6)
+            printf "%s" "Phew!"
+            ;;
+    esac
+}
+
 play() {
     clear
     local target="${words[RANDOM % ${#words[@]}]}"
@@ -120,14 +146,14 @@ play() {
     while (( attempts <= 6 )); do
         guess_word=$(guess "${attempts}" "${target}")
         if [[ "${guess_word}" == "${target}" ]]; then # problem is here
-            echo "correct! you win! wow"
+            echo "$(intrjctn "${attempts}") You win!"
             return
         fi
 
         (( attempts++ ))
     done
 
-    echo "out of attempts! the word was: ${target}"
+    echo "Out of tries! The word was: ${target}"
 }
 
 read -r -d '' WORD_LIST <<'EOM'
