@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+RESET="\e[0m"
+GREEN="\e[42m"
+YELLOW="\e[43m"
+DEFAULT="\e[49m"
+
 main() {
     echo "welcome to shwordle!"
 
@@ -26,13 +31,49 @@ main() {
     done
 }
 
+check() {
+    target="$1"
+    guess="$2"
+
+    result=( "" "" "" "" "" )
+
+    # Pass 1: greens
+    for (( i=0; i<5; i++ )); do
+        if [[ "${guess:i:1}" == "${target:i:1}" ]]; then
+            result[$i]="${GREEN}${guess:i:1}"
+            (( count["${guess:i:1}"]-- ))
+        fi
+    done
+
+    # Pass 2: yellows & grays
+    for (( i=0; i<5; i++ )); do
+        if [[ -z "${result[$i]}" ]]; then
+            letter="${guess:i:1}"
+            if (( count["$letter"] > 0 )); then
+                result[$i]="${YELLOW}${guess:i:1}"
+                (( count["$letter"]-- ))
+            else
+                result[$i]="${DEFAULT}${guess:i:1}"
+            fi
+        fi
+    done
+
+    IFS=""
+    printf '%b\n' "${result[*]}${RESET}"
+}
+
 play() {
     clear
-    local target="${words[RANDOM % ${#words[@]}]}"
-    local attempts=1
+    target="${words[RANDOM % ${#words[@]}]}"
+    declare -A count
+    for (( i=0; i<5; i++ )); do
+        (( count["${target:i:1}"]++ ))
+    done
 
+    local attempts=1
     while (( attempts <= 6 )); do
         read -p "Guess #${attempts}: " guess
+        check "${target}" "${guess}"
         if [[ "${guess}" == "${target}" ]]; then
             echo "correct! you win! wow"
             return
@@ -51,7 +92,7 @@ FGHIJ
 KLMNO
 PQRST
 UVWXY
-Z
+ZZ
 EOM
 mapfile -t words <<< "${WORD_LIST}"
 
