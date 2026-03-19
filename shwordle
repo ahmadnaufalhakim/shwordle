@@ -33,27 +33,31 @@ main() {
 
 check() {
     target="$1"
-    guess="$2"
+    input="$2"
 
+    declare -A count
+    for (( i=0; i<5; i++ )); do
+        (( count["${target:i:1}"]++ ))
+    done
     result=( "" "" "" "" "" )
 
     # Pass 1: greens
     for (( i=0; i<5; i++ )); do
-        if [[ "${guess:i:1}" == "${target:i:1}" ]]; then
-            result[$i]="${GREEN}${guess:i:1}"
-            (( count["${guess:i:1}"]-- ))
+        if [[ "${input:i:1}" == "${target:i:1}" ]]; then
+            result[$i]="${GREEN}${input:i:1}"
+            (( count["${input:i:1}"]-- ))
         fi
     done
 
     # Pass 2: yellows & grays
     for (( i=0; i<5; i++ )); do
         if [[ -z "${result[$i]}" ]]; then
-            letter="${guess:i:1}"
+            letter="${input:i:1}"
             if (( count["$letter"] > 0 )); then
-                result[$i]="${YELLOW}${guess:i:1}"
+                result[$i]="${YELLOW}${input:i:1}"
                 (( count["$letter"]-- ))
             else
-                result[$i]="${DEFAULT}${guess:i:1}"
+                result[$i]="${DEFAULT}${input:i:1}"
             fi
         fi
     done
@@ -62,24 +66,64 @@ check() {
     printf '%b\n' "${result[*]}${RESET}"
 }
 
+guess() {
+    attempts="$1"
+    target="$2"
+
+    printf "Guess #%d: " "${attempts}" >&2
+
+    local input=""
+    local char
+    
+    # Save terminal settings
+    stty -echo -icanon time 0 min 1
+
+    while true; do
+        IFS= read -r -n1 char
+
+        # Enter key
+        if [[ -z "${char}" && "${#input}" -eq 5 ]]; then
+            # Temporarily delete the displayed input
+            printf "\033[5D\033[K" >&2
+            stty sane
+
+            # Reprint the result to screen through stderr
+            check "${target}" "${input}" >&2
+
+            # Return the raw guess through stdout
+            printf "%s" "${input}"
+            return
+        fi
+
+        # Backspace
+        if [[ "${char}" == $'\x7f' ]]; then
+            if [[ -n "${input}" ]]; then
+                input="${input::-1}"
+                printf "\b \b" >&2
+            fi
+            continue
+        fi
+
+        if [[ "${char}" =~ [a-zA-Z] ]] && (( ${#input} < 5 )); then
+            upper=$(printf "%s" "${char}" | tr '[:lower:]' '[:upper:]')
+            input+="${upper}"
+            printf "%s" "${upper}" >&2
+        fi
+    done
+}
+
 play() {
     clear
-    target="${words[RANDOM % ${#words[@]}]}"
-    declare -A count
-    for (( i=0; i<5; i++ )); do
-        (( count["${target:i:1}"]++ ))
-    done
+    local target="${words[RANDOM % ${#words[@]}]}"
 
     local attempts=1
     while (( attempts <= 6 )); do
-        read -p "Guess #${attempts}: " guess
-        check "${target}" "${guess}"
-        if [[ "${guess}" == "${target}" ]]; then
+        guess_word=$(guess "${attempts}" "${target}")
+        if [[ "${guess_word}" == "${target}" ]]; then # problem is here
             echo "correct! you win! wow"
             return
-        else
-            echo "wrong! try again"
         fi
+
         (( attempts++ ))
     done
 
@@ -92,7 +136,7 @@ FGHIJ
 KLMNO
 PQRST
 UVWXY
-ZZ
+ZZXYZ
 EOM
 mapfile -t words <<< "${WORD_LIST}"
 
