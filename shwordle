@@ -4,6 +4,7 @@ RESET="\e[0m"
 GREEN="\e[42m"
 YELLOW="\e[43m"
 GRAY="\e[100m"
+RED="\e[41m"
 DEFAULT="\e[49m"
 
 C_LD="╗"
@@ -24,7 +25,7 @@ KEY_ROWS=(
     "ZXCVBNM"
 )
 
-GUESS_COL=2
+GUESS_COL=6
 KEYBOARD_ROW=6
 KEYBOARD_COL=14
 
@@ -82,7 +83,7 @@ draw_keyboard() {
                     color="${YELLOW}"
                     ;;
                 1)
-                    color="${GRAY}"
+                    color="${RED}"
                     ;;
                 *)
                     color="${DEFAULT}"
@@ -112,7 +113,7 @@ update_key_state() {
         fi
     done
 
-    # Pass 2: yellow/gray
+    # Pass 2: yellow/red
     for (( i=0; i<5; i++ )); do
         key="${input:i:1}"
 
@@ -176,7 +177,7 @@ check() {
         fi
     done
 
-    # Pass 2: yellows & grays
+    # Pass 2: yellows & reds
     for (( i=0; i<5; i++ )); do
         if [[ -z "${result[$i]}" ]]; then
             letter="${input:i:1}"
@@ -184,7 +185,7 @@ check() {
                 result[$i]="${YELLOW}${input:i:1}"
                 (( count["$letter"]-- ))
             else
-                result[$i]="${GRAY}${input:i:1}"
+                result[$i]="${RED}${input:i:1}"
             fi
         fi
     done
@@ -196,8 +197,6 @@ check() {
 guess() {
     local attempts="$1"
     local target="$2"
-
-    printf "#%d: " "${attempts}" >&2
 
     local input=""
     local char
@@ -211,7 +210,7 @@ guess() {
         # Enter key
         if [[ -z "${char}" && "${#input}" -eq 5 ]]; then
             # Temporarily delete the displayed input
-            printf "\033[5D\033[K" >&2
+            printf "\033[5D     \033[5D" >&2
             stty sane
 
             # Reprint the result to screen through stderr
@@ -243,22 +242,22 @@ intrjctn() {
     local attempts="$1"
     case "${attempts}" in
         1)
-            printf "%s" "Genius!"
+            printf "%s" "Genius"
             ;;
         2)
-            printf "%s" "Magnificent!"
+            printf "%s" "Magnificent"
             ;;
         3)
-            printf "%s" "Impressive!"
+            printf "%s" "Impressive"
             ;;
         4)
-            printf "%s" "Splendid!"
+            printf "%s" "Splendid"
             ;;
         5)
-            printf "%s" "Great!"
+            printf "%s" "Great"
             ;;
         6)
-            printf "%s" "Phew!"
+            printf "%s" "Phew"
             ;;
     esac
 }
@@ -274,6 +273,9 @@ play() {
 
     local attempts=1
     while (( attempts <= 6 )); do
+        tput cup "$(( 3 + (attempts - 1) * 2 ))" 2
+        printf "#%d: " "${attempts}"
+
         draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
 
         tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}" 
@@ -281,9 +283,10 @@ play() {
         guess_word=$(guess "${attempts}" "${target}")
         update_key_state "${target}" "${guess_word}"
 
-        if [[ "${guess_word}" == "${target}" ]]; then # problem is here
+        if [[ "${guess_word}" == "${target}" ]]; then
+            draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
             tput cup 15 0
-            echo "$(intrjctn "${attempts}") You win!"
+            echo "$(intrjctn "${attempts}")! You win! (${attempts}/6)"
             return
         fi
 
