@@ -239,7 +239,6 @@ is_valid_guess() {
     local guess="$1"
 
     for w in "${words[@]}"; do
-        # echo "comparing ${w} and ${guess}"
         if [[ "${w}" == "${guess}" ]]; then
             return 0
         fi
