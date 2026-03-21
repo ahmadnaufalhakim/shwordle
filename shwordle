@@ -213,9 +213,6 @@ guess() {
             printf "\033[5D     \033[5D" >&2
             stty sane
 
-            # Reprint the result to screen through stderr
-            check "${target}" "${input}" >&2
-
             # Return the raw guess through stdout
             printf "%s" "${input}"
             return
@@ -236,6 +233,19 @@ guess() {
             printf "%s" "${upper}" >&2
         fi
     done
+}
+
+is_valid_guess() {
+    local guess="$1"
+
+    for w in "${words[@]}"; do
+        # echo "comparing ${w} and ${guess}"
+        if [[ "${w}" == "${guess}" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 intrjctn() {
@@ -280,7 +290,30 @@ play() {
 
         tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}" 
 
-        guess_word=$(guess "${attempts}" "${target}")
+        while true; do
+            guess_word="$(guess "${attempts}" "${target}")"
+
+            if is_valid_guess "${guess_word}"; then
+                break
+            else
+                stty -echo -icanon min 0 time 0
+                while read -r -t 0; do
+                    read -r
+                done
+
+                err_msg="${guess_word} is not in the word list!"
+                tput cup 15 0
+                printf "%s" "${err_msg}" 
+
+                sleep 1
+                tput cup 15 0
+                printf "%*s" "${#err_msg}" ""
+
+                tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}"
+            fi
+        done
+
+        check "${target}" "${guess_word}"
         update_key_state "${target}" "${guess_word}"
 
         if [[ "${guess_word}" == "${target}" ]]; then
