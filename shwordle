@@ -189,10 +189,24 @@ set_difficulty() {
     KEYBOARD_COL=$(( 14 + (WORD_LENGTH - 5) ))
 }
 
+greet() {
+    local username="${USER:-$(whoami)}"
+
+    local hour=$(date +%H)
+    if (( hour < 12 )); then
+        greeting="Good morning"
+    elif (( hour < 18 )); then
+        greeting="Good afternoon"
+    else
+        greeting="Good evening"
+    fi
+
+    printf "%s\n%s\n\n" "${greeting}, ${username}!" "Welcome to shwordle!"
+}
+
 main() {
     clear
-    echo "Welcome to shwordle!"
-    echo
+    greet
 
     while true; do
         echo "Menu:"
