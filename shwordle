@@ -26,29 +26,54 @@ KEY_ROWS=(
 )
 
 GUESS_COL=6
-KEYBOARD_ROW=6
-KEYBOARD_COL=14
 
 draw_ui() {
     clear
 
-    cat <<'EOF'
-╔═══════════╦═════════════════════╗
-║  Guesses  ║                     ║
-╠═══════════╣                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-║           ║                     ║
-╚═══════════╩═════════════════════╝
-EOF
+    local guess_width=$(( WORD_LENGTH + 6 ))
+    local right_width=21
+
+    repeat_char() {
+        local char="$1"
+        local count="$2"
+        local out=""
+        for ((i=0; i<count; i++)); do
+            out+="$char"
+        done
+        printf "%s" "$out"
+    }
+
+    # Top border
+    printf "╔%s╦%s╗\n" \
+        "$(repeat_char '═' "$guess_width")" \
+        "$(repeat_char '═' "$right_width")"
+
+    # Title (centered)
+    local title="Guesses"
+    local padding=$(( guess_width - ${#title} ))
+    local pad_left=$(( padding / 2 ))
+    local pad_right=$(( padding - pad_left ))
+
+    printf "║%*s%s%*s║ %-*s║\n" \
+        "$pad_left" "" "$title" "$pad_right" "" \
+        "$((right_width-1))" ""
+
+    # Divider
+    printf "╠%s╣%s║\n" \
+        "$(repeat_char '═' "$guess_width")" \
+        "$(repeat_char ' ' "$right_width")"
+
+    # Rows
+    for ((i=0; i<MAX_ATTEMPTS*2-1; i++)); do
+        printf "║ %-*s║ %-*s║\n" \
+            "$((guess_width-1))" "" \
+            "$((right_width-1))" ""
+    done
+
+    # Bottom border
+    printf "╚%s╩%s╝\n" \
+        "$(repeat_char '═' "$guess_width")" \
+        "$(repeat_char '═' "$right_width")"
 }
 
 draw_keyboard() {
@@ -100,12 +125,12 @@ update_key_state() {
     local input="$2"
 
     declare -A count
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         (( count["${target:i:1}"]++ ))
     done
 
     # Pass 1: greens
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         key="${input:i:1}"
         if [[ "${key}" == "${target:i:1}" ]]; then
             key_state["${key}"]=3
@@ -114,7 +139,7 @@ update_key_state() {
     done
 
     # Pass 2: yellow/red
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         key="${input:i:1}"
 
         # Skip if key is already green
@@ -130,6 +155,40 @@ update_key_state() {
     done
 }
 
+set_difficulty() {
+    while true; do
+        echo "Choose difficulty:"
+        echo "1) Easy (5 letters, 6 tries)"
+        echo "2) Medium (6 letters, 6 tries)"
+        echo "3) Hard (7 letters, 7 tries)"
+
+        read -p "Choice: " diff
+        case "${diff}" in
+            1)
+                WORD_LENGTH=5
+                MAX_ATTEMPTS=6
+                break
+                ;;
+            2)
+                WORD_LENGTH=6
+                MAX_ATTEMPTS=6
+                break
+                ;;
+            3)
+                WORD_LENGTH=7
+                MAX_ATTEMPTS=7
+                break
+                ;;
+            *)
+                echo "Invalid choice! Please enter 1, 2, or 3."
+                ;;
+        esac
+    done
+
+    KEYBOARD_ROW=$(( MAX_ATTEMPTS ))
+    KEYBOARD_COL=$(( 14 + (WORD_LENGTH - 5) ))
+}
+
 main() {
     clear
     echo "Welcome to shwordle!"
@@ -143,6 +202,7 @@ main() {
         read -p "Choose an option: " choice
         case "${choice}" in
             1)
+                set_difficulty
                 play
                 echo
                 echo "Would you like to play again?"
@@ -164,13 +224,13 @@ check() {
     local input="$2"
 
     declare -A count
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         (( count["${target:i:1}"]++ ))
     done
     result=( "" "" "" "" "" )
 
     # Pass 1: greens
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         if [[ "${input:i:1}" == "${target:i:1}" ]]; then
             result[$i]="${GREEN}${input:i:1}"
             (( count["${input:i:1}"]-- ))
@@ -178,7 +238,7 @@ check() {
     done
 
     # Pass 2: yellows & reds
-    for (( i=0; i<5; i++ )); do
+    for (( i=0; i<WORD_LENGTH; i++ )); do
         if [[ -z "${result[$i]}" ]]; then
             letter="${input:i:1}"
             if (( count["$letter"] > 0 )); then
@@ -200,7 +260,7 @@ guess() {
 
     local input=""
     local char
-    
+
     # Save terminal settings
     stty -echo -icanon time 0 min 1
 
@@ -208,9 +268,9 @@ guess() {
         IFS= read -r -n1 char
 
         # Enter key
-        if [[ -z "${char}" && "${#input}" -eq 5 ]]; then
+        if [[ -z "${char}" && "${#input}" -eq WORD_LENGTH ]]; then
             # Temporarily delete the displayed input
-            printf "\033[5D     \033[5D" >&2
+            printf "\033[%dD%*s\033[%dD" "${WORD_LENGTH}" "${WORD_LENGTH}" "" "${WORD_LENGTH}" >&2
             stty sane
 
             # Return the raw guess through stdout
@@ -227,7 +287,7 @@ guess() {
             continue
         fi
 
-        if [[ "${char}" =~ [a-zA-Z] ]] && (( ${#input} < 5 )); then
+        if [[ "${char}" =~ [a-zA-Z] ]] && (( ${#input} < WORD_LENGTH )); then
             upper=$(printf "%s" "${char}" | tr '[:lower:]' '[:upper:]')
             input+="${upper}"
             printf "%s" "${upper}" >&2
@@ -275,19 +335,18 @@ play() {
     declare -gA key_state
     key_state=()
 
-    clear
     draw_ui
 
     local target="${words[RANDOM % ${#words[@]}]}"
 
     local attempts=1
-    while (( attempts <= 6 )); do
+    while (( attempts <= MAX_ATTEMPTS )); do
         tput cup "$(( 3 + (attempts - 1) * 2 ))" 2
         printf "#%d: " "${attempts}"
 
         draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
 
-        tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}" 
+        tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}"
 
         while true; do
             guess_word="$(guess "${attempts}" "${target}")"
@@ -301,11 +360,11 @@ play() {
                 done
 
                 err_msg="${guess_word} is not in the word list!"
-                tput cup 15 0
+                tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
                 printf "%s" "${err_msg}" 
 
                 sleep 1
-                tput cup 15 0
+                tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
                 printf "%*s" "${#err_msg}" ""
 
                 tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}"
@@ -317,15 +376,15 @@ play() {
 
         if [[ "${guess_word}" == "${target}" ]]; then
             draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
-            tput cup 15 0
-            echo "$(intrjctn "${attempts}")! You win! (${attempts}/6)"
+            tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
+            echo "$(intrjctn "${attempts}")! You win! (${attempts}/${MAX_ATTEMPTS})"
             return
         fi
 
         (( attempts++ ))
     done
 
-    tput cup 15 0
+    tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
     echo "Out of tries! The word was: ${target}"
 }
 
