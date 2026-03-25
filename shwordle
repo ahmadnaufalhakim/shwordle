@@ -195,9 +195,13 @@ greet() {
     local hour=$(date +%H)
     (( hour = 10#${hour} ))
 
-    if (( hour < 12 )); then
+    local greeting
+
+    if (( hour < 4 || hour >= 20 )); then
+        greeting="Good night"
+    elif (( hour < 12 )); then
         greeting="Good morning"
-    elif (( hour < 18 )); then
+    elif (( hour < 16 )); then
         greeting="Good afternoon"
     else
         greeting="Good evening"
