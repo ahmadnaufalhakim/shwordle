@@ -193,6 +193,8 @@ greet() {
     local username="${USER:-$(whoami)}"
 
     local hour=$(date +%H)
+    (( hour = 10#${hour} ))
+
     if (( hour < 12 )); then
         greeting="Good morning"
     elif (( hour < 18 )); then
