@@ -198,35 +198,6 @@ greet() {
     printf "%s\n%s\n\n" "${greeting}, ${USERNAME}!" "Welcome to shwordle!"
 }
 
-main() {
-    clear
-    greet
-
-    while true; do
-        echo "Menu:"
-        echo "1) Play"
-        echo "2) Exit"
-
-        read -p "Choose an option: " choice
-        case "${choice}" in
-            1)
-                set_difficulty
-                play
-                echo
-                echo "Would you like to play again?"
-                ;;
-            2)
-                echo $'\nThanks for playing!'
-                echo "Made by ahmadnaufalhakim"
-                break
-                ;;
-            *)
-                echo "Invalid choice! Please enter 1 or 2."
-                ;;
-        esac
-    done
-}
-
 check() {
     local target="$1"
     local input="$2"
@@ -394,6 +365,35 @@ play() {
 
     tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
     echo "Out of tries! The word was: ${target}"
+}
+
+main() {
+    clear
+    greet
+
+    while true; do
+        echo "Menu:"
+        echo "1) Play"
+        echo "2) Exit"
+
+        read -p "Choose an option: " choice
+        case "${choice}" in
+            1)
+                set_difficulty
+                play
+                echo
+                echo "Would you like to play again?"
+                ;;
+            2)
+                echo $'\nThanks for playing!'
+                echo "Made by ahmadnaufalhakim"
+                break
+                ;;
+            *)
+                echo "Invalid choice! Please enter 1 or 2."
+                ;;
+        esac
+    done
 }
 
 read -r -d '' WORD_LIST <<'EOM'
