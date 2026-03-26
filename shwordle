@@ -13,8 +13,6 @@ KEY_ROWS=(
     "ZXCVBNM"
 )
 
-GUESS_COL=6
-
 USERNAME="${USER:-$(id -un)}"
 
 draw_ui() {
@@ -325,7 +323,7 @@ play() {
 
         draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
 
-        tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}"
+        tput cup "$(( 3 + (attempts - 1) * 2 ))" 6
 
         while true; do
             guess_word="$(guess "${attempts}" "${target}")"
@@ -346,7 +344,7 @@ play() {
                 tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
                 printf "%*s" "${#err_msg}" ""
 
-                tput cup "$(( 3 + (attempts - 1) * 2 ))" "${GUESS_COL}"
+                tput cup "$(( 3 + (attempts - 1) * 2 ))" 6
             fi
         done
 
