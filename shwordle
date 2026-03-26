@@ -7,18 +7,6 @@ GRAY="\e[100m"
 RED="\e[41m"
 DEFAULT="\e[49m"
 
-C_LD="╗"
-C_DR="╔"
-C_RU="╚"
-C_UL="╝"
-T_D="╦"
-T_R="╠"
-T_U="╩"
-T_L="╣"
-HORIZONTAL="═"
-VERTICAL="║"
-PLUS="╬"
-
 KEY_ROWS=(
     "QWERTYUIOP"
     "ASDFGHJKL"
