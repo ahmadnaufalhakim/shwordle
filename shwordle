@@ -15,6 +15,8 @@ KEY_ROWS=(
 
 GUESS_COL=6
 
+USERNAME="${USER:-$(id -un)}"
+
 draw_ui() {
     clear
 
@@ -178,8 +180,6 @@ set_difficulty() {
 }
 
 greet() {
-    local username="${USER:-$(whoami)}"
-
     local hour=$(date +%H)
     (( hour = 10#${hour} ))
 
@@ -195,7 +195,7 @@ greet() {
         greeting="Good evening"
     fi
 
-    printf "%s\n%s\n\n" "${greeting}, ${username}!" "Welcome to shwordle!"
+    printf "%s\n%s\n\n" "${greeting}, ${USERNAME}!" "Welcome to shwordle!"
 }
 
 main() {
