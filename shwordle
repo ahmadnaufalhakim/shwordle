@@ -13,6 +13,12 @@ KEY_ROWS=(
     "ZXCVBNM"
 )
 
+DIFFS=( # DIFF WORD_LENGTH MAX_ATTEMPTS
+    "easy 5 6"
+    "medium 6 6"
+    "hard 7 7"
+)
+
 USERNAME="${USER:-$(id -un)}"
 
 draw_ui() {
@@ -146,31 +152,18 @@ update_key_state() {
 set_difficulty() {
     while true; do
         echo "Choose difficulty:"
-        echo "1) Easy (5 letters, 6 tries)"
-        echo "2) Medium (6 letters, 6 tries)"
-        echo "3) Hard (7 letters, 7 tries)"
+        for i in "${!DIFFS[@]}"; do
+            read LABEL LENGTH ATTEMPTS <<< "${DIFFS[i]}"
+            echo "$(( i + 1 ))) ${LABEL^} ($LENGTH letters, $ATTEMPTS tries)"
+        done
 
         read -p "Choice: " diff
-        case "${diff}" in
-            1)
-                WORD_LENGTH=5
-                MAX_ATTEMPTS=6
-                break
-                ;;
-            2)
-                WORD_LENGTH=6
-                MAX_ATTEMPTS=6
-                break
-                ;;
-            3)
-                WORD_LENGTH=7
-                MAX_ATTEMPTS=7
-                break
-                ;;
-            *)
-                echo "Invalid choice! Please enter 1, 2, or 3."
-                ;;
-        esac
+        if [[ "${diff}" =~ ^[1-3]$ ]]; then
+            read DIFF WORD_LENGTH MAX_ATTEMPTS <<< "${DIFFS[$(( diff - 1 ))]}"
+            break
+        else
+            echo "Invalid choice! Please enter 1, 2, or 3."
+        fi
     done
 
     KEYBOARD_ROW=$(( MAX_ATTEMPTS ))
