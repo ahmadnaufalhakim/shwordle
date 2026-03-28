@@ -549,6 +549,49 @@ save_stats() {
     done
 }
 
+load_stats() {
+    declare -gA stats
+    stats=()
+
+    mkdir -p "${DATA_DIR}"
+    [[ ! -f "${STATS_FILE}" ]] && touch "${STATS_FILE}"
+
+    while IFS= read -r line; do
+        [[ -z "${line}" ]] && continue
+        key="${line%%;*}"
+        echo "from load ${key}"
+        stats["${key}"]="${line}"
+    done < "${STATS_FILE}"
+}
+
+show_stats() {
+    echo "Stats for ${USERNAME}:"
+    for diff in easy medium hard; do
+        key="${diff}"
+        entry="${stats[${key}]}" #here
+        if [[ -z "${entry}" ]]; then
+            echo "    ${diff^}: No games played yet."
+            continue
+        fi
+
+        IFS=";" read -r _ total win loss current_streak max_streak guess_dist <<< "${entry}"
+        echo "    ${diff^}:"
+        echo "        Total games: ${total}"
+        echo "        Wins: ${win}"
+        echo "        Losses: ${loss}"
+        echo "        Current streak: ${current_streak}"
+        echo "        Max streak: ${max_streak}"
+
+        # guess distribution
+        IFS=',' read -r -a dist_arr <<< "${guess_dist}"
+        echo -n "    Guess distribution: "
+        for i in "${!dist_arr[@]}"; do
+            printf "%d:%d " "$((i+1))" "${dist_arr[i]}"
+        done
+        echo
+    done
+}
+
 main() {
     clear
     greet
