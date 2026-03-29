@@ -603,9 +603,18 @@ show_stats() {
             bar_len=$(( count * bar_max_width / max ))
 
             # build bar
+            color="${COLORS[i]}"
+            [[ -z "${color}" ]] && color="${LOSE_COLOR}"
             bar=""
             for ((j = 0; j < bar_len; j++)); do
-                bar+="#" #TODO: figure out how to use ▓ as the bar char
+                bar+="${color}${BAR}${RESET}"
+            done
+
+            # pad manually
+            pad_len=$(( bar_max_width - bar_len ))
+            pad=""
+            for ((j = 0; j < pad_len; j++)); do
+                pad+="${PAD}"
             done
 
             # calculate percentage (based on total wins)
@@ -615,12 +624,12 @@ show_stats() {
                 percent=0
             fi
 
-            printf "            %d | %-*s [%3d%%] (%d)\n" \
+            printf "            %d | %b%s [%3d%%] (%d)\n" \
                 "$(( i + 1 ))" \
-                "${bar_max_width}" \
-                "${bar}" \
-                "${percent}" \
-                "${count}"
+                "$bar" \
+                "$pad" \
+                "$percent" \
+                "$count"
         done
         echo
     done
