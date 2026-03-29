@@ -12,6 +12,7 @@ KEY_ROWS=(
     "ASDFGHJKL"
     "ZXCVBNM"
 )
+STATS_BAR_MAX_WIDTH=20
 
 USERNAME="${USER:-$(id -un)}"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/shwordle"
@@ -377,7 +378,6 @@ load_stats() {
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
         key="${line%%;*}"
-        echo "from load ${key}"
         stats["${key}"]="${line}"
     done < "${STATS_FILE}"
 }
@@ -389,6 +389,7 @@ show_stats() {
         entry="${stats[${key}]}" #here
         if [[ -z "${entry}" ]]; then
             echo "    ${diff^}: No games played yet."
+            echo
             continue
         fi
 
@@ -402,9 +403,43 @@ show_stats() {
 
         # guess distribution
         IFS=',' read -r -a dist_arr <<< "${guess_dist}"
-        echo -n "    Guess distribution: "
+        echo "        Guess distribution:"
+
+        # find max value for normalization
+        max=0
+        for val in "${dist_arr[@]}"; do
+            (( val > max )) && max=${val}
+        done
+        # avoid division by zero
+        (( max == 0 )) && max=1
+
+        bar_max_width=${STATS_BAR_MAX_WIDTH}
+
         for i in "${!dist_arr[@]}"; do
-            printf "%d:%d " "$((i+1))" "${dist_arr[i]}"
+            count=${dist_arr[i]}
+
+            # calculate bar length proportional to max
+            bar_len=$(( count * bar_max_width / max ))
+
+            # build bar
+            bar=""
+            for ((j = 0; j < bar_len; j++)); do
+                bar+="#" #TODO: figure out how to use ▓ as the bar char
+            done
+
+            # calculate percentage (based on total wins)
+            if (( win > 0 )); then
+                percent=$(( count * 100 / win ))
+            else
+                percent=0
+            fi
+
+            printf "            %d | %-*s [%3d%%] (%d)\n" \
+                "$(( i + 1 ))" \
+                "${bar_max_width}" \
+                "${bar}" \
+                "${percent}" \
+                "${count}"
         done
         echo
     done
