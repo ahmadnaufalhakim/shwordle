@@ -567,7 +567,7 @@ show_stats() {
     echo "Stats for ${USERNAME}:"
     for diff in easy medium hard; do
         key="${diff}"
-        entry="${stats[${key}]}" #here
+        entry="${stats[${key}]}"
         if [[ -z "${entry}" ]]; then
             echo "    ${diff^}: No games played yet."
             echo
@@ -582,15 +582,16 @@ show_stats() {
         echo "        Current streak: ${current_streak}"
         echo "        Max streak: ${max_streak}"
 
-        # guess distribution
+        # guess distribution (wins + losses as X)
         IFS=',' read -r -a dist_arr <<< "${guess_dist}"
         echo "        Guess distribution:"
 
-        # find max value for normalization
+        # find max value for normalization (include losses)
         max=0
         for val in "${dist_arr[@]}"; do
             (( val > max )) && max=${val}
         done
+        (( loss > max )) && max=${loss}
         # avoid division by zero
         (( max == 0 )) && max=1
 
@@ -606,14 +607,14 @@ show_stats() {
             color="${COLORS[i]}"
             [[ -z "${color}" ]] && color="${LOSE_COLOR}"
             bar=""
-            for ((j = 0; j < bar_len; j++)); do
+            for (( j = 0; j < bar_len; j++ )); do
                 bar+="${color}${BAR}${RESET}"
             done
 
             # pad manually
             pad_len=$(( bar_max_width - bar_len ))
             pad=""
-            for ((j = 0; j < pad_len; j++)); do
+            for (( j = 0; j < pad_len; j++ )); do
                 pad+="${PAD}"
             done
 
@@ -624,6 +625,8 @@ show_stats() {
                 percent=0
             fi
 
+            percent=$(( total > 0 ? count * 100 / total : 0 ))
+
             printf "            %d | %b%s [%3d%%] (%d)\n" \
                 "$(( i + 1 ))" \
                 "$bar" \
@@ -631,6 +634,31 @@ show_stats() {
                 "$percent" \
                 "$count"
         done
+
+        # losses as "X"
+        count=${loss}
+        
+        bar_len=$(( count * bar_max_width / max ))
+        
+        bar=""
+        for (( j = 0; j < bar_len; j++ )); do
+            bar+="${LOSE_COLOR}${BAR}${RESET}"
+        done
+
+        pad_len=$(( bar_max_width - bar_len ))
+        pad=""
+        for (( j = 0; j < pad_len; j++ )); do
+            pad+="${PAD}"
+        done
+
+        percent=$(( total > 0 ? count * 100 / total : 0 ))
+
+        printf "            X | %b%s [%3d%%] (%d)\n" \
+            "$bar" \
+            "$pad" \
+            "$percent" \
+            "$count"
+
         echo
     done
 }
