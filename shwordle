@@ -29,21 +29,21 @@ USERNAME="${USER:-$(id -un)}"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/shwordle"
 STATS_FILE="${DATA_DIR}/stats"
 
+repeat_char() {
+    local char="$1"
+    local count="$2"
+    local out=""
+    for (( i=0; i<count; i++ )); do
+        out+="$char"
+    done
+    printf "%s" "$out"
+}
+
 draw_ui() {
     clear
 
     local guess_width=$(( WORD_LENGTH + 6 ))
-    local right_width=21
-
-    repeat_char() {
-        local char="$1"
-        local count="$2"
-        local out=""
-        for (( i=0; i<count; i++ )); do
-            out+="$char"
-        done
-        printf "%s" "$out"
-    }
+    local right_width=21   
 
     # Top border
     printf "╔%s╦%s╗\n" \
@@ -254,6 +254,7 @@ guess() {
 
     # Save terminal settings
     stty -echo -icanon time 0 min 1
+    trap 'stty sane' EXIT
 
     while true; do
         IFS= read -r -n1 char
@@ -427,6 +428,16 @@ show_stats() {
 
         bar_max_width=${STATS_BAR_MAX_WIDTH}
 
+        # width calculation
+        left_width=3
+        extra_right_width=$(( 12 + ${#max} ))
+        right_width=$(( bar_max_width + extra_right_width ))
+        # borders
+        left_line=$(repeat_char "═" "${left_width}")
+        right_line=$(repeat_char "═" "${right_width}")
+
+        printf "          ╔%s╦%s╗\n" "${left_line}" "${right_line}"
+
         for i in "${!dist_arr[@]}"; do
             count=${dist_arr[i]}
 
@@ -457,7 +468,7 @@ show_stats() {
 
             percent=$(( total > 0 ? count * 100 / total : 0 ))
 
-            printf "            %d | %b%s [%3d%%] (%d)\n" \
+            printf "          ║ %d ║ %b%s [%3d%%] (%d) ║\n" \
                 "$(( i + 1 ))" \
                 "$bar" \
                 "$pad" \
@@ -465,6 +476,7 @@ show_stats() {
                 "$count"
         done
 
+        printf "          ╠%s╬%s╣\n" "${left_line}" "${right_line}"
         # losses as "X"
         count=${loss}
         
@@ -483,11 +495,12 @@ show_stats() {
 
         percent=$(( total > 0 ? count * 100 / total : 0 ))
 
-        printf "            X | %b%s [%3d%%] (%d)\n" \
+        printf "          ║ X ║ %b%s [%3d%%] (%d) ║\n" \
             "$bar" \
             "$pad" \
             "$percent" \
             "$count"
+        printf "          ╚%s╩%s╝\n" "${left_line}" "${right_line}"
 
         echo
     done
