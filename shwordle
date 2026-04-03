@@ -3,33 +3,53 @@
 RESET="\e[0m"
 GREEN="\e[42m"
 YELLOW="\e[43m"
-GRAY="\e[100m"
 RED="\e[41m"
 DEFAULT="\e[49m"
+COLORS=(
+    "\e[38;2;38;194;163m"   # 1 guess
+    "\e[38;2;106;145;181m"  # 2 guess
+    "\e[38;2;78;160;42m"   # 3 guess
+    "\e[38;2;119;172;66m"   # 4 guess
+    "\e[38;2;100;140;75m"   # 5 guess
+    "\e[38;2;247;198;49m"   # 6 guess
+    "\e[38;2;255;164;89m"   # 7 guess
+)
+LOSE_COLOR="\e[38;2;250;65;45m"
+BAR="▓"
+PAD="░"
 
 KEY_ROWS=(
     "QWERTYUIOP"
     "ASDFGHJKL"
     "ZXCVBNM"
 )
+DIFFS=(
+    "easy 5 6"
+    "medium 6 6"
+    "hard 7 7"
+)
+
+STATS_BAR_MAX_WIDTH=50
 
 USERNAME="${USER:-$(id -un)}"
+DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/shwordle"
+STATS_FILE="${DATA_DIR}/stats"
+
+repeat_char() {
+    local char="$1"
+    local count="$2"
+    local out=""
+    for (( i=0; i<count; i++ )); do
+        out+="$char"
+    done
+    printf "%s" "$out"
+}
 
 draw_ui() {
     clear
 
     local guess_width=$(( WORD_LENGTH + 6 ))
-    local right_width=21
-
-    repeat_char() {
-        local char="$1"
-        local count="$2"
-        local out=""
-        for ((i=0; i<count; i++)); do
-            out+="$char"
-        done
-        printf "%s" "$out"
-    }
+    local right_width=21   
 
     # Top border
     printf "╔%s╦%s╗\n" \
@@ -52,7 +72,7 @@ draw_ui() {
         "$(repeat_char ' ' "$right_width")"
 
     # Rows
-    for ((i=0; i<MAX_ATTEMPTS*2-1; i++)); do
+    for (( i=0; i<MAX_ATTEMPTS*2-1; i++ )); do
         printf "║ %-*s║ %-*s║\n" \
             "$((guess_width-1))" "" \
             "$((right_width-1))" ""
@@ -150,27 +170,29 @@ set_difficulty() {
         echo "2) Medium (6 letters, 6 tries)"
         echo "3) Hard (7 letters, 7 tries)"
 
-        read -p "Choice: " diff
-        case "${diff}" in
+        read -p "Choice: " DIFF
+        case "${DIFF}" in
             1)
+                DIFF=easy
                 WORD_LENGTH=5
                 MAX_ATTEMPTS=6
-                break
                 ;;
             2)
+                DIFF=medium
                 WORD_LENGTH=6
                 MAX_ATTEMPTS=6
-                break
                 ;;
             3)
+                DIFF=hard
                 WORD_LENGTH=7
                 MAX_ATTEMPTS=7
-                break
                 ;;
             *)
                 echo "Invalid choice! Please enter 1, 2, or 3."
+                continue
                 ;;
         esac
+        break
     done
 
     KEYBOARD_ROW=$(( MAX_ATTEMPTS ))
@@ -240,6 +262,7 @@ guess() {
 
     # Save terminal settings
     stty -echo -icanon time 0 min 1
+    trap 'stty sane' EXIT
 
     while true; do
         IFS= read -r -n1 char
@@ -316,7 +339,7 @@ play() {
 
     local target="${words[RANDOM % ${#words[@]}]}"
 
-    local attempts=1
+    attempts=1
     while (( attempts <= MAX_ATTEMPTS )); do
         tput cup "$(( 3 + (attempts - 1) * 2 ))" 2
         printf "#%d: " "${attempts}"
@@ -355,7 +378,7 @@ play() {
             draw_keyboard "${KEYBOARD_ROW}" "${KEYBOARD_COL}"
             tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
             echo "$(intrjctn "${attempts}")! You win! (${attempts}/${MAX_ATTEMPTS})"
-            return
+            return 0
         fi
 
         (( attempts++ ))
@@ -363,26 +386,195 @@ play() {
 
     tput cup $(( 15 + (MAX_ATTEMPTS - 6) * 2 )) 0
     echo "Out of tries! The word was: ${target}"
+    return 1
+}
+
+load_stats() {
+    declare -gA stats
+    stats=()
+
+    mkdir -p "${DATA_DIR}"
+    [[ ! -f "${STATS_FILE}" ]] && touch "${STATS_FILE}"
+
+    while IFS= read -r line; do
+        [[ -z "${line}" ]] && continue
+        key="${line%%;*}"
+        stats["${key}"]="${line}"
+    done < "${STATS_FILE}"
+}
+
+show_stats() {
+    echo "Stats for ${USERNAME}:"
+    for diff in easy medium hard; do
+        key="${diff}"
+        entry="${stats[${key}]}"
+
+        if [[ -z "${entry}" ]]; then
+            echo "    ${diff^}: No games played yet."
+            echo
+            continue
+        fi
+
+        IFS=";" read -r _ total win loss current_streak max_streak guess_dist <<< "${entry}"
+        echo "    ${diff^}:"
+        echo "        Total games: ${total}"
+        echo "        Wins: ${win}"
+        echo "        Losses: ${loss}"
+        echo "        Current streak: ${current_streak}"
+        echo "        Max streak: ${max_streak}"
+
+        IFS=',' read -r -a dist_arr <<< "${guess_dist}"
+        echo "        Guess distribution:"
+
+        bar_max_width=${STATS_BAR_MAX_WIDTH}
+        left_width=3
+        extra_right_width=$(( 12 + ${#total} ))
+        right_width=$(( bar_max_width + extra_right_width ))
+        left_line=$(repeat_char "═" "${left_width}")
+        right_line=$(repeat_char "═" "${right_width}")
+        printf "          ╔%s╦%s╗\n" "${left_line}" "${right_line}"
+
+        guess_max=0
+        for val in "${dist_arr[@]}"; do
+            (( val > guess_max )) && guess_max=${val}
+        done
+
+        for i in "${!dist_arr[@]}"; do
+            count=${dist_arr[i]}
+            bar_len=$(( guess_max > 0 ? count * bar_max_width / guess_max : 0 ))
+
+            color="${COLORS[i]}"
+            segment=$(repeat_char "${BAR}" "${bar_len}")
+            pad=$(repeat_char "${PAD}" "$(( bar_max_width - bar_len ))")
+
+            percent=$(( total > 0 ? count * 100 / total : 0 ))
+
+            printf "          ║ %d ║ %b%s [%3d%%] (%*d) ║\n" \
+                "$(( i + 1 ))" \
+                "${color}${segment}${RESET}" \
+                "${pad}" \
+                "${percent}" \
+                "${#total}" \
+                "${count}"
+        done
+
+        printf "          ╠%s╬%s╣\n" "${left_line}" "${right_line}"
+
+        bar=""
+        counts=("${dist_arr[@]}" "${loss}")
+        colors_all=("${COLORS[@]:0:${#dist_arr[@]}}" "${LOSE_COLOR}")
+
+        # cumulative counts
+        cum_arr=()
+        sum=0
+        for c in "${counts[@]}"; do
+            (( sum += c ))
+            cum_arr+=("${sum}")
+        done
+
+        seg_idx=0
+        current_color=""
+        segment=""
+
+        for (( k=0; k<bar_max_width; k++ )); do
+            pos=$(( (2*k + 1) * total / (2 * bar_max_width) ))
+
+            while (( seg_idx < ${#cum_arr[@]} - 1 && pos >= cum_arr[seg_idx] )); do
+                (( seg_idx++ ))
+            done
+
+            new_color="${colors_all[seg_idx]}"
+
+            if [[ "${new_color}" != "${current_color}" ]]; then
+                if [[ -n "${segment}" ]]; then
+                    bar+="${current_color}$(repeat_char "${BAR}" "${#segment}")"
+                fi
+                segment="${BAR}"
+                current_color="${new_color}"
+            else
+                segment+="${BAR}"
+            fi
+        done
+
+        [[ -n "${segment}" ]] && bar+="${current_color}$(repeat_char "$BAR" "${#segment}")${RESET}"
+
+        printf "          ║ Σ ║ %b [%3d%%] (%d) ║\n" \
+            "${bar}" \
+            100 \
+            "${total}"
+
+        printf "          ╚%s╩%s╝\n" "${left_line}" "${right_line}"
+        echo
+    done
+}
+
+update_stats() {
+    local result="$1"
+    local attempts="$2"
+
+    local entry="${stats[${DIFF}]}"
+    if [[ -z "${entry}" ]]; then
+        total=0; win=0; loss=0; current_streak=0; max_streak=0
+        dist_arr=()
+        for (( i=0; i<MAX_ATTEMPTS; i++ )); do
+            dist_arr[i]=0
+        done
+    else
+        IFS=";" read -r _ total win loss current_streak max_streak guess_dist <<< "${entry}"
+        IFS=',' read -r -a dist_arr <<< "${guess_dist}"
+    fi
+
+    (( total++ ))
+    if (( result == 0 )); then
+        (( win++ ))
+        (( current_streak++ ))
+        (( current_streak > max_streak )) && max_streak=${current_streak}
+        (( dist_arr[attempts-1]++ ))
+    else
+        (( loss++ ))
+        current_streak=0
+    fi
+
+    new_guess_dist=$(IFS=','; echo "${dist_arr[*]}")
+    stats["${DIFF}"]="${DIFF};${total};${win};${loss};${current_streak};${max_streak};${new_guess_dist}"
+}
+
+save_stats() {
+    : > "${STATS_FILE}"
+
+    for key in easy medium hard; do
+        if [[ -n "${stats[${key}]}" ]]; then
+            echo "${stats[${key}]}" >> "${STATS_FILE}"
+        fi
+    done
 }
 
 main() {
     clear
     greet
+    load_stats
 
     while true; do
         echo "Menu:"
         echo "1) Play"
-        echo "2) Exit"
+        echo "2) Show stats"
+        echo "3) Exit"
 
         read -p "Choose an option: " choice
         case "${choice}" in
             1)
                 set_difficulty
                 play
-                echo
+                result=$?
+                update_stats "${result}" "${attempts}"
+                save_stats
                 echo "Would you like to play again?"
                 ;;
             2)
+                clear
+                show_stats
+                ;;
+            3)
                 echo $'\nThanks for playing!'
                 echo "Made by ahmadnaufalhakim"
                 break
