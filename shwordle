@@ -549,132 +549,6 @@ save_stats() {
     done
 }
 
-load_stats() {
-    declare -gA stats
-    stats=()
-
-    mkdir -p "${DATA_DIR}"
-    [[ ! -f "${STATS_FILE}" ]] && touch "${STATS_FILE}"
-
-    while IFS= read -r line; do
-        [[ -z "${line}" ]] && continue
-        key="${line%%;*}"
-        stats["${key}"]="${line}"
-    done < "${STATS_FILE}"
-}
-
-show_stats() {
-    echo "Stats for ${USERNAME}:"
-    for diff in easy medium hard; do
-        key="${diff}"
-        entry="${stats[${key}]}"
-        if [[ -z "${entry}" ]]; then
-            echo "    ${diff^}: No games played yet."
-            echo
-            continue
-        fi
-
-        IFS=";" read -r _ total win loss current_streak max_streak guess_dist <<< "${entry}"
-        echo "    ${diff^}:"
-        echo "        Total games: ${total}"
-        echo "        Wins: ${win}"
-        echo "        Losses: ${loss}"
-        echo "        Current streak: ${current_streak}"
-        echo "        Max streak: ${max_streak}"
-
-        # guess distribution (wins + losses as X)
-        IFS=',' read -r -a dist_arr <<< "${guess_dist}"
-        echo "        Guess distribution:"
-
-        # find max value for normalization (include losses)
-        max=0
-        for val in "${dist_arr[@]}"; do
-            (( val > max )) && max=${val}
-        done
-        (( loss > max )) && max=${loss}
-        # avoid division by zero
-        (( max == 0 )) && max=1
-
-        bar_max_width=${STATS_BAR_MAX_WIDTH}
-
-        # width calculation
-        left_width=3
-        extra_right_width=$(( 12 + ${#max} ))
-        right_width=$(( bar_max_width + extra_right_width ))
-        # borders
-        left_line=$(repeat_char "═" "${left_width}")
-        right_line=$(repeat_char "═" "${right_width}")
-
-        printf "          ╔%s╦%s╗\n" "${left_line}" "${right_line}"
-
-        for i in "${!dist_arr[@]}"; do
-            count=${dist_arr[i]}
-
-            # calculate bar length proportional to max
-            bar_len=$(( count * bar_max_width / max ))
-
-            # build bar
-            color="${COLORS[i]}"
-            [[ -z "${color}" ]] && color="${LOSE_COLOR}"
-            bar=""
-            for (( j = 0; j < bar_len; j++ )); do
-                bar+="${color}${BAR}${RESET}"
-            done
-
-            # pad manually
-            pad_len=$(( bar_max_width - bar_len ))
-            pad=""
-            for (( j = 0; j < pad_len; j++ )); do
-                pad+="${PAD}"
-            done
-
-            # calculate percentage (based on total wins)
-            if (( win > 0 )); then
-                percent=$(( count * 100 / win ))
-            else
-                percent=0
-            fi
-
-            percent=$(( total > 0 ? count * 100 / total : 0 ))
-
-            printf "          ║ %d ║ %b%s [%3d%%] (%d) ║\n" \
-                "$(( i + 1 ))" \
-                "$bar" \
-                "$pad" \
-                "$percent" \
-                "$count"
-        done
-
-        printf "          ╠%s╬%s╣\n" "${left_line}" "${right_line}"
-        # losses as "X"
-        count=${loss}
-        
-        bar_len=$(( count * bar_max_width / max ))
-        
-        bar=""
-        for (( j = 0; j < bar_len; j++ )); do
-            bar+="${LOSE_COLOR}${BAR}${RESET}"
-        done
-
-        pad_len=$(( bar_max_width - bar_len ))
-        pad=""
-        for (( j = 0; j < pad_len; j++ )); do
-            pad+="${PAD}"
-        done
-
-        percent=$(( total > 0 ? count * 100 / total : 0 ))
-
-        printf "          ║ X ║ %b%s [%3d%%] (%d) ║\n" \
-            "$bar" \
-            "$pad" \
-            "$percent" \
-            "$count"
-        printf "          ╚%s╩%s╝\n" "${left_line}" "${right_line}"
-
-        echo
-    done
-}
-
 main() {
     clear
     greet
@@ -713,6 +587,7 @@ main() {
 }
 
 read -r -d '' WORD_LIST <<'EOM'
+STOCKS
 ABACK
 ABASE
 ABATE
