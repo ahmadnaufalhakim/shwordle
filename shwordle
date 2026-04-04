@@ -206,7 +206,7 @@ set_difficulty() {
     declare -gA word_set
     word_set=()
     for w in "${words[@]}"; do
-        word_set["$w"]=1
+        word_set["${w}"]=1
     done
 
     KEYBOARD_ROW=$(( MAX_ATTEMPTS ))
