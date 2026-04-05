@@ -109,6 +109,7 @@ def extract_dt_parts(tag):
     current = []
 
     for child in tag.children:
+        #TODO: add dx-jump span tag handling (case: TUNAS, LEDUM)
 
         # 🔹 Separator → flush current buffer
         if getattr(child, "name", None) == "strong":
