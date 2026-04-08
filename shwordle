@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 RESET="\e[0m"
+ITALIC="\e[3m"
 GREEN="\e[42m"
 YELLOW="\e[43m"
 RED="\e[41m"
@@ -15,6 +16,9 @@ COLORS=(
     "\e[38;2;255;164;89m"   # 7 guess
 )
 LOSE_COLOR="\e[38;2;250;65;45m"
+DEF_HEADER="\e[1;36m"
+SYN_HEADER="\e[1;34m"
+CXL_HEADER="\e[1;35m"
 BAR="▓"
 PAD="░"
 
@@ -30,6 +34,9 @@ DIFFS=(
 )
 
 STATS_BAR_MAX_WIDTH=50
+MAX_DEFS=20
+MAX_SYNS=10
+MAX_CXLS=5
 
 USERNAME="${USER:-$(id -un)}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -165,11 +172,14 @@ update_key_state() {
 }
 
 set_difficulty() {
+    clear
     while true; do
         echo "Choose difficulty:"
         echo "1) Easy (5 letters, 6 tries)"
         echo "2) Medium (6 letters, 6 tries)"
         echo "3) Hard (7 letters, 7 tries)"
+        echo "4) Back to menu"
+        echo
 
         read -p "Choice: " DIFF
         case "${DIFF}" in
@@ -188,7 +198,12 @@ set_difficulty() {
                 WORD_LENGTH=7
                 MAX_ATTEMPTS=7
                 ;;
+            4)
+                clear
+                return 1
+                ;;
             *)
+                clear
                 echo "Invalid choice! Please enter 1, 2, or 3."
                 continue
                 ;;
@@ -343,7 +358,7 @@ play() {
 
     draw_ui
 
-    local target="${words[RANDOM % ${#words[@]}]}"
+    target="${words[RANDOM % ${#words[@]}]}"
 
     attempts=1
     while (( attempts <= MAX_ATTEMPTS )); do
@@ -502,7 +517,7 @@ show_stats() {
             fi
         done
 
-        [[ -n "${segment}" ]] && bar+="${current_color}$(repeat_char "$BAR" "${#segment}")${RESET}"
+        [[ -n "${segment}" ]] && bar+="${current_color}$(repeat_char "${BAR}" "${#segment}")${RESET}"
 
         printf "          ║ Σ ║ %b [%3d%%] (%d) ║\n" \
             "${bar}" \
@@ -555,6 +570,222 @@ save_stats() {
     done
 }
 
+italic() {
+    printf "${ITALIC}%s${RESET}" "$1"
+}
+
+sanitize_link_text() {
+    local text="$1"
+
+    # remove everything except letters and spaces
+    text="$(printf "%s" "${text}" | tr -cd '[:alpha:] ')"
+
+    # trim extra spaces
+    text="$(echo "${text}" | xargs)"
+
+    printf "%s" "${text}"
+}
+
+url_encode_spaces() {
+    local text="$1"
+    printf "%s" "${text// /%20}"
+}
+
+link() {
+    local text="$1"
+
+    local clean
+    clean="$(sanitize_link_text "${text}")"
+
+    local encoded
+    encoded="$(url_encode_spaces "${clean}")"
+
+    local url="https://www.merriam-webster.com/dictionary/${encoded}"
+
+    printf "%b\e]8;;%s\e\\%s\e]8;;\e\\%b" "\e[33m" "${url}" "${clean}" "${RESET}"
+}
+
+render_italic() {
+    local text="$1"
+    
+    while [[ "${text}" == *"<i>"*"</i>"* ]]; do
+        local before="${text%%<i>*}"
+        local rest="${text#*<i>}"
+        local inside="${rest%%</i>*}"
+        local after="${rest#*</i>}"
+
+        local formatted
+        formatted="$(italic "${inside}")"
+
+        text="${before}${formatted}${after}"
+    done
+
+    printf "%s" "${text}"
+}
+
+render_link() {
+    local text="$1"
+
+    while [[ "${text}" == *"[LNK]"*"[/LNK]"* ]]; do
+        local before="${text%%\[LNK\]*}"
+        local rest="${text#*\[LNK\]}"
+        local inside="${rest%%\[/LNK\]*}"
+        local after="${rest#*\[/LNK\]}"
+
+        local formatted
+        formatted="$(link "${inside}")"
+
+        text="${before}${formatted}${after}"
+    done
+
+    printf "%s" "${text}"
+}
+
+clean_quotes() {
+    local s="$1"
+    s="${s%\"}"
+    s="${s#\"}"
+    s="${s//\"\"/\"}"
+    printf "%s" "${s}"
+}
+
+extract_tag() {
+    local text="$1"
+    local tag="$2"
+    local -n out_array="$3"
+
+    local open="[${tag}]"
+    local close="[/${tag}]"
+
+    while [[ "${text}" == *"${open}"*"${close}"* ]]; do
+        local before="${text%%"${open}"*}"
+        local rest="${text#*"${open}"}"
+        local inside="${rest%%"${close}"*}"
+        local after="${rest#*"${close}"}"
+
+        out_array+=("${inside}")
+
+        text="${after}"
+    done
+}
+
+dedup_preserve_order() {
+    local -n arr="$1"
+    local -A seen=()
+    local result=()
+
+    for item in "${arr[@]}"; do
+        if [[ -z "${seen[${item}]}" ]]; then
+            seen["${item}"]=1
+            result+=("${item}")
+        fi
+    done
+
+    arr=("${result[@]}")
+}
+
+parse_entry() {
+    local line="$1"
+
+    # split into fields
+    word="${line%%$'\t'*}"
+    rest="${line#*$'\t'}"
+
+    rest=$(clean_quotes "${rest}")
+
+    local def_arr=()
+    local syn_arr=()
+    local cxl_arr=()
+
+    extract_tag "${rest}" "DEF" def_arr
+    extract_tag "${rest}" "SYN" syn_arr
+    extract_tag "${rest}" "CXL" cxl_arr
+
+    # deduplicate entries
+    dedup_preserve_order def_arr
+    dedup_preserve_order syn_arr
+    dedup_preserve_order cxl_arr
+
+    # ---------- DEFINITIONS ----------
+    if (( ${#def_arr[@]} > 0 )); then
+        printf "\t${DEF_HEADER}DEFINITIONS${RESET}\n"
+
+        local i=1
+        for d in "${def_arr[@]}"; do
+            d=$(render_link "${d}")
+            d=$(render_italic "${d}")
+
+            printf "\t    %2d. %s\n" "${i}" "${d}"
+            (( i++ ))
+            (( i > MAX_DEFS )) && break
+        done
+        echo
+    fi
+
+    # ---------- SYNONYMS ----------
+    if (( ${#syn_arr[@]} > 0 )); then
+        printf "\t${SYN_HEADER}SYNONYMS / USAGE${RESET}\n"
+
+        local i=1
+        for s in "${syn_arr[@]}"; do
+            s=$(render_link "${s}")
+            s=$(render_italic "${s}")
+
+            printf "\t    ⤷ %s\n" "${s}"
+            (( i++ ))
+            (( i > MAX_SYNS )) && break
+        done
+        echo
+    fi
+
+    # ---------- CROSS REFERENCES ----------
+    if (( ${#cxl_arr[@]} > 0 )); then
+        printf "\t${CXL_HEADER}SEE ALSO${RESET}\n"
+
+        local i=1
+        for c in "${cxl_arr[@]}"; do
+            c=$(render_link "${c}")
+            c=$(render_italic "${c}")
+
+            printf "\t    ✶ %s\n" "${c}"
+            (( i++ ))
+            (( i > MAX_CXLS )) && break
+        done
+        echo
+    fi
+}
+
+show_word_defs() {
+    local result="$1"
+    local word="$2"
+    local dict_file="${SCRIPT_DIR}/words/${DIFF}.tsv"
+
+    local bg border
+    if (( result == 0 )); then
+        bg=$'\e[42m'
+    else
+        bg=$'\e[41m'
+    fi
+    border=$(repeat_char "═" "$(( WORD_LENGTH + 4 ))")
+
+    echo
+    printf "\t\t${bg}╔%s╗\n" "${border}"
+    printf "\t\t║  %b  ║\n" "\e[1m${word}"
+    printf "\t\t╚%s╝%b\n" "${border}" "${RESET}"
+    echo
+
+    # find the entry
+    local line
+    line=$(grep -i -F "${word}"$'\t' "${dict_file}")
+
+    if [[ -z "${line}" ]]; then
+        echo "No definition found."
+        return
+    fi
+
+    parse_entry "${line}"
+}
+
 main() {
     clear
     greet
@@ -565,15 +796,22 @@ main() {
         echo "1) Play"
         echo "2) Show stats"
         echo "3) Exit"
+        echo
 
         read -p "Choose an option: " choice
         case "${choice}" in
             1)
-                set_difficulty
+                if ! set_difficulty; then
+                    continue
+                fi
                 play
+
                 result=$?
                 update_stats "${result}" "${attempts}"
                 save_stats
+
+                show_word_defs "${result}" "${target}"
+
                 echo "Would you like to play again?"
                 ;;
             2)
@@ -586,6 +824,7 @@ main() {
                 break
                 ;;
             *)
+                clear
                 echo "Invalid choice! Please enter 1 or 2."
                 ;;
         esac
