@@ -570,6 +570,66 @@ save_stats() {
     done
 }
 
+animate_reset() {
+    local width=25 min_delay=5 max_delay=75 last_jitter=0
+    local i progress ease base_delay change jitter delay
+
+    # empty bar + reset cursor
+    local empty_bar=$(printf "%*s" "${width}" "" | tr ' ' '-')
+    printf "Resetting stats: [%s]" "${empty_bar}"
+    printf "\rResetting stats: ["
+
+    for ((i=0; i<width; i++)); do
+        # progress + color (skewed red fade)
+        local t=$(( i * 1000 / (width - 1) ))
+        local t_fast=$(( t * 3 )); (( t_fast > 1000 )) && t_fast=1000
+        local r=$(( 255 - (255 * t_fast / 1000) )) g=$(( 255 * t / 1000 )) b=79
+
+        printf "\033[38;2;%d;%d;%dm▓\033[0m" "${r}" "${g}" "${b}"
+
+        # easing + delay
+        progress=${t}
+        ease=$(( (3 * progress * progress / 1000 - 2 * progress * progress * progress / 1000000) ))
+        base_delay=$(( min_delay + (max_delay - min_delay) * ease / 1000 ))
+
+        # jitter
+        change=$(( RANDOM % 21 - 10 ))
+        jitter=$(( last_jitter + change ))
+        (( jitter > 20 )) && jitter=20; (( jitter < -20 )) && jitter=-20
+        last_jitter=${jitter}
+
+        # final delay
+        delay=$(( base_delay + jitter ))
+        (( delay < 1 )) && delay=1
+        sleep "$(printf '%d.%03d' $(( delay / 1000 )) $(( delay % 1000 )))"
+    done
+
+    printf "]\nStats cleared!\n"
+}
+
+reset_stats() {
+    printf "Are you sure you want to reset \e[1mall stats${RESET}?\n"
+    echo "This action cannot be undone!"
+    echo
+
+    read -p "Type 'y' to confirm, anything else to cancel: " confirm
+
+    case "${confirm}" in
+        y|Y)
+            animate_reset
+            : > "${STATS_FILE}"
+
+            stats=()
+            sleep 1
+            ;;
+        *)
+            echo
+            echo "Reset cancelled."
+            sleep 1
+            ;;
+    esac
+}
+
 italic() {
     printf "${ITALIC}%s${RESET}" "$1"
 }
@@ -770,8 +830,8 @@ show_word_defs() {
 
     echo
     printf "\t\t${bg}╔%s╗\n" "${border}"
-    printf "\t\t║  %b  ║\n" "\e[1m${word}"
-    printf "\t\t╚%s╝%b\n" "${border}" "${RESET}"
+    printf "\t\t║  %b  ║${RESET}\n" "\e[1m${word}"
+    printf "\t\t${bg}╚%s╝%b\n" "${border}" "${RESET}"
     echo
 
     # find the entry
@@ -815,8 +875,30 @@ main() {
                 echo "Would you like to play again?"
                 ;;
             2)
-                clear
-                show_stats
+                while true; do
+                    clear
+                    show_stats
+
+                    echo "Options:"
+                    echo "1) Reset stats"
+                    echo "2) Back"
+                    echo
+
+                    read -p "Choice: " stats_choice
+                    case "${stats_choice}" in
+                        1)
+                            reset_stats
+                            ;;
+                        2)
+                            clear
+                            break
+                            ;;
+                        *)
+                            echo "Invalid choice!"
+                            sleep 1
+                            ;;
+                    esac
+                done
                 ;;
             3)
                 echo $'\nThanks for playing!'
