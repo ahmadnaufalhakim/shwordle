@@ -570,6 +570,43 @@ save_stats() {
     done
 }
 
+animate_reset() {
+    local width=25 min_delay=5 max_delay=75 last_jitter=0
+    local i progress ease base_delay change jitter delay
+
+    # empty bar + reset cursor
+    local empty_bar=$(printf "%*s" "${width}" "" | tr ' ' '-')
+    printf "Resetting stats: [%s]" "${empty_bar}"
+    printf "\rResetting stats: ["
+
+    for ((i=0; i<width; i++)); do
+        # progress + color (skewed red fade)
+        local t=$(( i * 1000 / (width - 1) ))
+        local t_fast=$(( t * 3 )); (( t_fast > 1000 )) && t_fast=1000
+        local r=$(( 255 - (255 * t_fast / 1000) )) g=$(( 255 * t / 1000 )) b=79
+
+        printf "\033[38;2;%d;%d;%dm▓\033[0m" "${r}" "${g}" "${b}"
+
+        # easing + delay
+        progress=${t}
+        ease=$(( (3 * progress * progress / 1000 - 2 * progress * progress * progress / 1000000) ))
+        base_delay=$(( min_delay + (max_delay - min_delay) * ease / 1000 ))
+
+        # jitter
+        change=$(( RANDOM % 21 - 10 ))
+        jitter=$(( last_jitter + change ))
+        (( jitter > 20 )) && jitter=20; (( jitter < -20 )) && jitter=-20
+        last_jitter=${jitter}
+
+        # final delay
+        delay=$(( base_delay + jitter ))
+        (( delay < 1 )) && delay=1
+        sleep "$(printf '%d.%03d' $(( delay / 1000 )) $(( delay % 1000 )))"
+    done
+
+    printf "]\nStats cleared!\n"
+}
+
 reset_stats() {
     printf "Are you sure you want to reset \e[1mall stats${RESET}?\n"
     echo "This action cannot be undone!"
@@ -579,12 +616,10 @@ reset_stats() {
 
     case "${confirm}" in
         y|Y)
+            animate_reset
             : > "${STATS_FILE}"
 
             stats=()
-
-            echo
-            echo "Stats have been reset."
             sleep 1
             ;;
         *)
