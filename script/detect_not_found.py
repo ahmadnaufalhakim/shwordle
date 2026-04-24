@@ -6,7 +6,7 @@ from datetime import datetime
 import sys
 
 # ---------------- CONFIG ----------------
-MAX_WORKERS = 10        # adjust (5–15 is safe)
+MAX_WORKERS = 5        # adjust (5–15 is safe)
 FLUSH_EVERY = 20        # batch disk writes
 TIMEOUT = 10
 
@@ -124,9 +124,9 @@ def check_words(words, output_file):
 
 # -------------- ENTRY POINT ----------------
 if __name__ == "__main__":
-    input_file = "words_all.txt"
+    input_file = "../words/medium.txt"
     output_file = "missing.txt"
-    log_file = "run.2.log"
+    log_file = "run.1.log"
 
     setup_logging(log_file)
 
